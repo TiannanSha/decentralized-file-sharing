@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"io"
+	"sync"
 )
 
 // Upload create and store in the BlobStore the chunks and metafile
@@ -71,4 +72,39 @@ func hashDataToBytes(data []byte, dataLen int) []byte {
 	return h.Sum(nil)
 }
 
+func (n *node) UpdateCatalog(key string, peer string) {
+	n.Catalog.UpdateConcurrentCatalog(key, peer)
+}
 
+func (n *node) GetCatalog() peer.Catalog{
+	return n.Catalog.GetCatalog()
+}
+
+/* *** concurrent catalog *** */
+
+type ConcurrentCatalog struct {
+	catalog peer.Catalog
+	sync.Mutex
+}
+
+func NewConcurrentCatalog() ConcurrentCatalog{
+	catalog := make(map[string]map[string]struct{})
+	return ConcurrentCatalog{catalog:catalog}
+}
+
+func (cc *ConcurrentCatalog) UpdateConcurrentCatalog(key string, peer string) {
+	cc.Lock()
+	defer cc.Unlock()
+
+	val := make (map[string]struct{})
+	val[peer] = struct{}{}
+	cc.catalog[key] = val
+}
+
+func (cc *ConcurrentCatalog) GetCatalog() peer.Catalog{
+	cc.Lock()
+	defer cc.Unlock()
+	return cc.catalog
+}
+
+/* *** concurrent catalog *** */

@@ -29,10 +29,10 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	nbrs := nbrSet{nbrs: nbrsMap}
 	channelsMap := make(map[string]chan bool)
 	pktAckChannels := chanPool{pktAckChannels: channelsMap}
-
+	catalog := NewConcurrentCatalog()
 
 	return &node{conf:conf, routingTable: routingTable, stopSigCh: stopSig, Status: &Status,
-		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels}
+		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels, Catalog: &catalog}
 }
 
 // node implements a peer to build a Peerster system
@@ -45,15 +45,14 @@ type node struct {
 	stopSigCh chan bool
 	routingTable peer.RoutingTable
 	sync.RWMutex
-	//sequenceNumber uint // sequence number of last created
 	Status *status
 	nbrSet *nbrSet
 	addr   string
 	antiEntropyQuitCh chan struct{} // initialized when starting antiEntropy mechanism
 	heartbeatQuitCh chan struct{} // initialized when starting heartbeat mechanism
-	//rumorsReceived map[string][]types.Rumor
 	pktAckChannels *chanPool
-	//rwmutexPktAckChannels sync.RWMutex
+
+	Catalog *ConcurrentCatalog // todo maybe need to make this thread safe?
 }
 
 // Start implements peer.Service
