@@ -28,11 +28,13 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	nbrsMap := make(map[string]bool)
 	nbrs := nbrSet{nbrs: nbrsMap}
 	channelsMap := make(map[string]chan bool)
-	pktAckChannels := chanPool{pktAckChannels: channelsMap}
+	pktAckChannels := ChanPool{pktAckChannels: channelsMap}
+	dataReplyChannels := NewMsgChanPool()
 	catalog := NewConcurrentCatalog()
 
 	return &node{conf:conf, routingTable: routingTable, stopSigCh: stopSig, Status: &Status,
-		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels, Catalog: &catalog}
+		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels, Catalog: &catalog,
+	dataReplyChannels: &dataReplyChannels}
 }
 
 // node implements a peer to build a Peerster system
@@ -50,7 +52,8 @@ type node struct {
 	addr   string
 	antiEntropyQuitCh chan struct{} // initialized when starting antiEntropy mechanism
 	heartbeatQuitCh chan struct{} // initialized when starting heartbeat mechanism
-	pktAckChannels *chanPool
+	pktAckChannels *ChanPool
+	dataReplyChannels *MsgChanPool // when recv data reply, use these channels to notify the thread waiting for this reply
 
 	Catalog *ConcurrentCatalog // todo maybe need to make this thread safe?
 }
@@ -69,6 +72,8 @@ func (n *node) Start() error {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.AckMessage{}, n.ExecAckMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.StatusMessage{}, n.ExecStatusMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.PrivateMessage{}, n.ExecPrivateMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.DataReplyMessage{}, n.ExecDataReplyMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ExecDataRequestMessage)
 
 	// optionally start anti-entropy mechanism
 	if (n.conf.AntiEntropyInterval>0) {

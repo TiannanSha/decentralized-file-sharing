@@ -185,6 +185,38 @@ func (n *node) ExecStatusMessage(msg types.Message, pkt transport.Packet) error 
 	return nil
 }
 
+func (n* node) ExecDataReplyMessage(msg types.Message, pkt transport.Packet) error {
+	// cast the message to its actual type. You assume it is the right type.
+	dataReplyMsg, ok := msg.(*types.DataReplyMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	n.dataReplyChannels.notifyAckChannel(dataReplyMsg.RequestID, msg) // pass the reply msg to the thread waiting
+	return nil
+}
+
+func (n* node) ExecDataRequestMessage(msg types.Message, pkt transport.Packet) error {
+	// cast the message to its actual type. You assume it is the right type.
+	dataRequestMsg, ok := msg.(*types.DataRequestMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	// reply a data replyMessage to the sender of data request
+	dataReplyMsg := types.DataReplyMessage{
+		RequestID: dataRequestMsg.RequestID,
+		Key:       dataRequestMsg.Key,
+		Value:     n.conf.Storage.GetDataBlobStore().Get(dataRequestMsg.Key),
+	}
+	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(dataReplyMsg, dataReplyMsg.Name())
+	err := n.Unicast(pkt.Header.Source, transportMsg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 /**
  * this function does not use routing table but directly use Send() to send back to nbr
  * @return packet it sent
