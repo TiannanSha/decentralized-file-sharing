@@ -26,15 +26,18 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	rumorsReceived := make(map[string][]types.Rumor)
 	Status := status{StatusMsg: statusMsg, rumorsReceived: rumorsReceived}
 	nbrsMap := make(map[string]bool)
-	nbrs := nbrSet{nbrs: nbrsMap}
+	nbrs := NbrSet{nbrs: nbrsMap}
 	channelsMap := make(map[string]chan bool)
 	pktAckChannels := ChanPool{pktAckChannels: channelsMap}
 	dataReplyChannels := NewMsgChanPool()
+	searchReplyChannels := NewMsgChanPool()
 	catalog := NewConcurrentCatalog()
+	concurrentStrSet := NewConcurrentStrSet()
 
 	return &node{conf:conf, routingTable: routingTable, stopSigCh: stopSig, Status: &Status,
 		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels, Catalog: &catalog,
-	dataReplyChannels: &dataReplyChannels}
+	dataReplyChannels: &dataReplyChannels, searchReplyChannels: &searchReplyChannels,
+	searchRequestsReceived: &concurrentStrSet}
 }
 
 // node implements a peer to build a Peerster system
@@ -48,14 +51,15 @@ type node struct {
 	routingTable peer.RoutingTable
 	sync.RWMutex
 	Status *status
-	nbrSet *nbrSet
+	nbrSet *NbrSet
 	addr   string
 	antiEntropyQuitCh chan struct{} // initialized when starting antiEntropy mechanism
 	heartbeatQuitCh chan struct{} // initialized when starting heartbeat mechanism
 	pktAckChannels *ChanPool
-	dataReplyChannels *MsgChanPool // when recv data reply, use these channels to notify the thread waiting for this reply
-
-	Catalog *ConcurrentCatalog // todo maybe need to make this thread safe?
+	dataReplyChannels *MsgChanPool // when recv data reply, use these chan to notify the thread waiting for this reply
+	searchReplyChannels *MsgChanPool // when recv search reply, ...
+	Catalog *ConcurrentCatalog
+	searchRequestsReceived *ConcurrentStrSet
 }
 
 // Start implements peer.Service
@@ -74,7 +78,8 @@ func (n *node) Start() error {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.PrivateMessage{}, n.ExecPrivateMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DataReplyMessage{}, n.ExecDataReplyMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ExecDataRequestMessage)
-
+	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchRequestMessage{}, n.ExecSearchRequestMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchReplyMessage{}, n.ExecSearchReplyMessage)
 	// optionally start anti-entropy mechanism
 	if (n.conf.AntiEntropyInterval>0) {
 		n.startAntiEntropy()
@@ -238,8 +243,8 @@ func (n *node) SetRoutingEntry(origin, relayAddr string) {
 	} else {
 		n.routingTable[origin] = relayAddr
 		if (origin==relayAddr && origin!=n.addr) {
-			// this is a peer, add it to nbrSet
-			//n.nbrSet[origin] = true
+			// this is a peer, add it to NbrSet
+			//n.NbrSet[origin] = true
 			n.nbrSet.addNbr(origin)
 		}
 	}

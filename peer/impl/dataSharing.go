@@ -11,6 +11,7 @@ import (
 	"go.dedis.ch/cs438/types"
 	"io"
 	"math/rand"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -125,7 +126,7 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	// we now have a metafile!=nil, extract chunk hashes from it.
 	metafileContent := string(metafile)
 
-		// todo update var metafile, then get hashes outside of if. also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
+		// update var metafile, then get hashes outside of if. also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
 	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
 	// for each chunk hash send a request, and then store the replied key value to local
 	var allChunks []byte
@@ -248,6 +249,135 @@ func (n *node) waitForReplyMsg(requestID string, transportMsg transport.Message,
 	}
 }
 
+func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+	threadSafeNames := NewConcurrentStrSet()
+
+	// search local naming store for file names that match the reg
+	n.conf.Storage.GetNamingStore().ForEach(func(name string, val []byte) bool {
+		if reg.MatchString(name) {
+			threadSafeNames.addStr(name)
+		}
+		return true
+	})
+
+	// divide budget evenly among nbrs and send search request to nbrs to get matching filenames from nbrs
+	// wait for search reply until timeout
+	budgets := n.divideBudget(int(budget))
+	numNbrs := len(budgets)
+	nbrsSent := make(map[string]bool)
+	timeoutChanPool := make(map[string]chan bool)  // send stop signal to threads waiting searching reply
+	for i:=0; i<numNbrs; i++ {
+		// if budget for a nbr is >0, send search requestand wait for reply. budgets can be e.g. [1,0,1,1]
+		// or maybe [2,3,2,3]
+		if budgets[i]>0 {
+			requestId := xid.New().String()
+			searchReqMsg := types.SearchRequestMessage{RequestID: requestId, Origin: n.addr,
+				Pattern: reg.String(), Budget: uint(budgets[i])}
+			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
+			nbr,err := n.nbrSet.selectARandomNbrExcept("")
+			for ; nbrsSent[nbr]; {
+				nbr,err = n.nbrSet.selectARandomNbrExcept("")
+			}
+			if (err!=nil) {
+				log.Warn().Msgf("node %s in searchAll err: %s", n.addr, err)
+			}
+			// now we found a new nbr that we have not sent request to. send search request to the nbr
+			n.directlySendToNbr(transportMsg, nbr)
+			if err != nil {
+				return nil, err
+			}
+
+			// start a thread to wait for the search replies from diff peers in the network
+			timeoutChan := make(chan bool, 1)
+			timeoutChanPool[requestId] = timeoutChan
+			go n.waitForSearchReplyMsg(requestId, &threadSafeNames, timeout, timeoutChan)
+		}
+	}
+	time.Sleep(timeout)
+	// notify all threads collecting search replies that timeout, let's collect and return
+	for _,v := range timeoutChanPool {
+		v <- true
+	}
+	return threadSafeNames.getStrSlice(), nil
+}
+
+
+// whenever receives a search reply msg, append the received file name to names
+// we wait for timeout amount of time to collect search reply msgs from different peers
+func (n *node) waitForSearchReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
+	timeout time.Duration, timeoutChan chan bool) {
+
+	// set a channel to listen whether received a reply msg
+	ch := make(chan types.Message, 1)
+	n.searchReplyChannels.setAckChannel(requestID, ch)
+	//if (n.conf.BackoffDataRequest.Initial==0) {
+	//	return
+	//}
+	log.Info().Msgf("node %s waitForDataReplyaMsg() requestId = %s",n.addr, requestID)
+	for {
+		//log.Info().Msgf("node %s waitForAck() pktIdWaiting = %s, inside the for loop",n.addr, requestID)
+		select {
+		case replyMsg := <- ch:
+			//if (replyMsg.Name()==types.EmptyMessage{}.Name()) {
+			//	// a empty message is sent to notify closing peer, no need to process it, just return an empty datareplymsg
+			//	return
+			//}
+			// received the search reply message
+			log.Info().Msgf("node %s recevied search reply for requestId %s", n.addr, requestID)
+			searchReplyMsg := replyMsg.(*types.SearchReplyMessage)
+			// only append the name if theere's indeed file with filename local on the sender of the reply
+			for _,item := range searchReplyMsg.Responses {
+				threadSafeNames.addStr(item.Name)
+			}
+
+		case <- timeoutChan:
+			// notify by calling thread that we have collected enough time for search replies
+			log.Info().Msgf("node %s timed out in wait for search reply", n.addr)
+			close(ch)
+			n.searchReplyChannels.deleteAckChannel(requestID)
+			return
+		}
+	}
+}
+
+// divide the budget evenly among neighbors. e.g. 4 neighbours, budget 9, then 3 nbr has budget 2, 1 nbr has budget 2+1
+func (n *node) divideBudget(budget int) []int {
+	numNbrs := n.nbrSet.getSize()
+	if numNbrs==0 {
+		return nil
+	}
+	var budgets []int
+	for i:=0; i<numNbrs; i++ {
+		budgets = append(budgets, budget / numNbrs)
+	}
+	remainingBudget := budget % numNbrs
+	// divide remaining budget evenly to remainingBudget number of nbrs, each increase budget by 1
+	// generate remainingBudget many random index from [0 to numNbrs)
+	if remainingBudget>0 {
+		indices := make(map[int]bool)
+		for i:=0; i<remainingBudget; i++ {
+			index := rand.Intn(numNbrs)
+			for ;indices[index]; { // keep generating new rand index and found a new one
+				index = rand.Intn(numNbrs)
+			}
+			indices[index] = true // add new index to the indices set
+		}
+		for k,_ := range indices {
+			budgets[k]++
+		}
+	}
+	return budgets
+}
+
+func (n *node) Tag(name string, mh string) error {
+	n.conf.Storage.GetNamingStore().Set(name, []byte(mh))
+	return nil
+}
+
+func (n *node) Resolve(name string) (metahash string) {
+	return string(n.conf.Storage.GetNamingStore().Get(name))
+}
+
 /* *** concurrent catalog *** */
 
 type ConcurrentCatalog struct {
@@ -260,13 +390,20 @@ func NewConcurrentCatalog() ConcurrentCatalog{
 	return ConcurrentCatalog{catalog:catalog}
 }
 
+// key is either metahash or chunk hash, peer is the addr of peer that has key's value
 func (cc *ConcurrentCatalog) UpdateConcurrentCatalog(key string, peer string) {
 	cc.Lock()
 	defer cc.Unlock()
-
-	val := make (map[string]struct{})
-	val[peer] = struct{}{}
-	cc.catalog[key] = val
+	_,keyExists := cc.catalog[key]
+	// if key not exists, create a new map as value.
+	if (!keyExists) {
+		val := make (map[string]struct{})
+		val[peer] = struct{}{}
+		cc.catalog[key] = val
+	} else {
+		// if key exists, add the peer to the existing value map
+		cc.catalog[key][peer] = struct{}{}
+	}
 }
 
 func (cc *ConcurrentCatalog) GetCatalog() peer.Catalog{

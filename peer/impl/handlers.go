@@ -3,10 +3,13 @@ package impl
 import (
 	"encoding/json"
 	"github.com/rs/zerolog/log"
+	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 	"math/rand"
+	"regexp"
+	"strings"
 )
 
 func (n* node) ExecRumorsMessage(msg types.Message, pkt transport.Packet) error {
@@ -192,7 +195,7 @@ func (n* node) ExecDataReplyMessage(msg types.Message, pkt transport.Packet) err
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 
-	n.dataReplyChannels.notifyAckChannel(dataReplyMsg.RequestID, msg) // pass the reply msg to the thread waiting
+	n.dataReplyChannels.passMsgToWaiter(dataReplyMsg.RequestID, msg) // pass the reply msg to the thread waiting
 	return nil
 }
 
@@ -217,12 +220,150 @@ func (n* node) ExecDataRequestMessage(msg types.Message, pkt transport.Packet) e
 	return nil
 }
 
+func (n* node) ExecSearchReplyMessage(msg types.Message, pkt transport.Packet) error {
+	// cast the message to its actual type. You assume it is the right type.
+	searchReplyMsg, ok := msg.(*types.SearchReplyMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+	log.Info().Msgf("node %s received search reply msg: %s", n.addr, searchReplyMsg)
+
+	// update the naming store and the catalog based on the message content
+	for _,fileinfo := range searchReplyMsg.Responses {
+		n.conf.Storage.GetNamingStore().Set(fileinfo.Name, []byte(fileinfo.Metahash))
+		// add metahash to catalog
+		n.Catalog.UpdateConcurrentCatalog(fileinfo.Metahash, pkt.Header.Source)
+		// add chunks to catalog
+		for _,chunkKey := range fileinfo.Chunks {
+			if (chunkKey!=nil) {
+				n.Catalog.UpdateConcurrentCatalog(string(chunkKey), pkt.Header.Source)
+			}
+		}
+	}
+
+	// reply a data replyMessage to the sender of data request
+	n.searchReplyChannels.passMsgToWaiter(searchReplyMsg.RequestID, msg)
+	return nil
+}
+
+//
+func (n* node) ExecSearchRequestMessage(msg types.Message, pkt transport.Packet) error {
+	log.Info().Msgf("node %s in ExecSearchRequestMessage",n.addr)
+	// cast the message to its actual type. You assume it is the right type.
+	searchRequestMsg, ok := msg.(*types.SearchRequestMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	// check if we received this request before
+
+	if (n.searchRequestsReceived.contains(searchRequestMsg.RequestID)) {
+		return nil
+	} else {
+		// this is new request
+		n.searchRequestsReceived.addStr(searchRequestMsg.RequestID)
+	}
+
+	// forward search request msgs if there's remaining budget
+	budget := searchRequestMsg.Budget - 1
+	if budget>0 {
+		budgets := n.divideBudget(int(budget))
+		numNbrs := len(budgets)
+		nbrsSent := make(map[string]bool)
+		for i:=0; i<numNbrs; i++ {
+			// if budget>0, send search request to a new nbr. budgets can be e.g. [1,0,1,1]
+			// or maybe [2,3,2,3]
+			if budgets[i]>0 {
+				searchReqMsg := types.SearchRequestMessage{
+					RequestID: searchRequestMsg.RequestID,
+					Origin: searchRequestMsg.Origin,
+					Pattern: searchRequestMsg.Pattern,
+					Budget: uint(budgets[i]),
+				}
+				transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
+				// find an unseen nbr. also it needs not be the packet src // todo may be should exclude origin of search
+				nbr,err := n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+				for ; nbrsSent[nbr]; {
+					nbr,err = n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+				}
+				if (err!=nil) {
+					log.Warn().Msgf("node %s in ExecSearchRequestMessage: %s", n.addr, err)
+				}
+				// now we found a new nbr that we have not sent request to. send search request to the nbr
+				n.directlySendToNbr(transportMsg, nbr) // this auto changes the packet's src and relayby field
+			}
+		}
+	}
+
+	// Check its naming store for any matching name and then construct a types.FilesInfo{} for each file mapped by a
+	// matching name. Include a matching name only if the peer has the corresponding metafile in its blob store
+	reg := regexp.MustCompile(searchRequestMsg.Pattern)
+	var fileInfos []types.FileInfo
+	// loop thru naming store and check for filename matching the regex
+	n.conf.Storage.GetNamingStore().ForEach(func(name string, val []byte) bool {
+		if reg.MatchString(name) {
+			// include a matching name only if the peer has corresponding metafile in its blob store
+			//name->metahash->metafile->chunk keys->chunks
+			metahash := string(val)
+			metafile := n.conf.Storage.GetDataBlobStore().Get(metahash)
+			if (metafile!=nil) {
+				// find chunks for metafile
+				metafileContent := string(metafile)
+				chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
+				var allChunks [][]byte
+				// append a chunkhash if it's in local store, otherwise append nil
+				for _, chunkHash := range chunkHashes {
+					chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
+					if chunk!= nil {
+						allChunks = append(allChunks, []byte(chunkHash))
+					} else {
+						allChunks = append(allChunks, nil)
+					}
+				}
+
+				fileInfo := types.FileInfo{
+					Name:     name,
+					Metahash: metahash,
+					Chunks:   allChunks,
+				}
+				fileInfos = append(fileInfos, fileInfo)
+			}
+		}
+		return true
+	})
+
+	// send search reply msg to the src of the pkt, but change the destination to searchRequestMsg.origin
+	searchReplyMsg := types.SearchReplyMessage{
+		RequestID: searchRequestMsg.RequestID,
+		Responses: fileInfos,
+	}
+	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReplyMsg, searchReplyMsg.Name())
+	log.Info().Msgf("in node %s, before send searchReply to orgin %s", n.addr, searchRequestMsg.Origin)
+	n.sendToNbrAndChangeDest(transportMsg, pkt.Header.Source, searchRequestMsg.Origin)
+
+	return nil
+}
+
 /**
  * this function does not use routing table but directly use Send() to send back to nbr
  * @return packet it sent
  */
 func (n *node) directlySendToNbr(msgToReply transport.Message, nbr string) transport.Packet {
 	header := transport.NewHeader(n.addr, n.addr, nbr, 0)
+	newPkt := transport.Packet{
+		Header: &header,
+		Msg:    &msgToReply,
+	}
+	err := n.conf.Socket.Send(nbr, newPkt, 0)
+	if err != nil {
+		log.Warn().Msgf("node %s, send to nbr %s, in directlySendToNbr() err: %s", n.addr,nbr, err)
+		log.Warn().Msgf("in directlySendToNbr() err: %s", err)
+	}
+	return newPkt
+}
+
+func (n *node) sendToNbrAndChangeDest(msgToReply transport.Message, nbr string, dest string) transport.Packet {
+	header := transport.NewHeader(n.addr, n.addr, dest, 0)
 	newPkt := transport.Packet{
 		Header: &header,
 		Msg:    &msgToReply,

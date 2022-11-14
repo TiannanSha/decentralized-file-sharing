@@ -26,7 +26,7 @@ func (n *node) Broadcast(msg transport.Message) error {
 	}
 
 	//var randNbr string
-	//for randNbr = range(n.nbrSet) {
+	//for randNbr = range(n.NbrSet) {
 	//	log.Info().Msgf("**** !!@##@node %s in Broadcast, send to %s, ", n.addr, randNbr)
 	//	break
 	//}
