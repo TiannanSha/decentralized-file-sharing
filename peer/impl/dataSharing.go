@@ -294,7 +294,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 			go n.waitForSearchAllReplyMsg(requestId, &threadSafeNames, timeoutChan)
 		}
 	}
-	time.Sleep(timeout)
+	time.Sleep(timeout*2)
 	// notify all threads collecting search replies that timeout, let's collect and return
 	for _,v := range timeoutChanPool {
 		v <- true
