@@ -126,7 +126,8 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	// we now have a metafile!=nil, extract chunk hashes from it.
 	metafileContent := string(metafile)
 
-	// update var metafile, then get hashes outside of if. also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
+	// update var metafile, then get hashes outside of if.
+	//also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
 	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
 	// for each chunk hash send a request, and then store the replied key value to local
 	var allChunks []byte
@@ -163,35 +164,34 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	return allChunks, nil
 }
 
-
-func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, error){
-	var allChunks []byte
-	for _, chunkHash := range chunkHashes {
-		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
-		if (chunk==nil) {
-			// need to find chunk at remote
-			requestID, transportMsg, randPeer, err1 := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
-			if (err1!=nil) {
-				return nil,err1
-			}
-			replyMsg, err2 := n.waitForReplyMsg(requestID, transportMsg, randPeer)
-			if (replyMsg == nil || err2!=nil) {
-				// normal exit when node shut down
-				log.Warn().Msgf("node %s, in download has error", n.addr)
-				return nil, errors.New("error in download")
-			}
-			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-			if (!ok || dataReplyMsg.Value == nil) {
-				return nil, errors.New("error in download")
-			}
-			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
-			chunk = dataReplyMsg.Value
-		}
-		// now we have a chunk that is not nil, add it to the result
-		allChunks = append(allChunks, chunk...)
-	}
-	return allChunks, nil
-}
+//func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, error){
+//	var allChunks []byte
+//	for _, chunkHash := range chunkHashes {
+//		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
+//		if (chunk==nil) {
+//			// need to find chunk at remote
+//			requestID, transportMsg, randPeer, err1 := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+//			if (err1!=nil) {
+//				return nil,err1
+//			}
+//			replyMsg, err2 := n.waitForReplyMsg(requestID, transportMsg, randPeer)
+//			if (replyMsg == nil || err2!=nil) {
+//				// normal exit when node shut down
+//				log.Warn().Msgf("node %s, in download has error", n.addr)
+//				return nil, errors.New("error in download")
+//			}
+//			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
+//			if (!ok || dataReplyMsg.Value == nil) {
+//				return nil, errors.New("error in download")
+//			}
+//			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
+//			chunk = dataReplyMsg.Value
+//		}
+//		// now we have a chunk that is not nil, add it to the result
+//		allChunks = append(allChunks, chunk...)
+//	}
+//	return allChunks, nil
+//}
 
 func (n *node) sendDataRequestToRandPeerWhoHasHash(hash string) (string, transport.Message, string, error){
 	randPeer,err := n.getRandomPeerWhoHasHash(hash)
@@ -325,7 +325,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	timeoutChan := make(chan bool, 1)
 	timeoutChanPool[requestID] = timeoutChan
 	go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
-	time.Sleep(timeout*2)
+	time.Sleep(timeout*3)
 	// notify all threads collecting search replies that timeout, let's collect and return
 	for _,v := range timeoutChanPool {
 		v <- true

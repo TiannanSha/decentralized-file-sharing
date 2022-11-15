@@ -51,7 +51,8 @@ func (n* node) SearchFirst(reg regexp.Regexp, conf peer.ExpandingRing) (name str
 
 // send search requests to nbrs and wait for replies
 // returns a name if found a full file in search reply within timeout otherwise empty string
-func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf peer.ExpandingRing, threadSafeNames *ConcurrentStrSet, budget uint)  (string, error) {
+func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf peer.ExpandingRing,
+	threadSafeNames *ConcurrentStrSet, budget uint)  (string, error) {
 	//budget := conf.Initial
 	budgets := n.divideBudget(int(budget))
 	numNbrs := len(budgets)
