@@ -187,10 +187,10 @@ func (n *node) Download(metahash string) ([]byte, error) {
 		}
 
 		// extract the metafile and then the chunk hashes from the
-		dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-		if (!ok) {
-			log.Error().Msg("error when extreact metafile: %s")
-		}
+		dataReplyMsg, _ := replyMsg.(*types.DataReplyMessage)
+		//if (!ok) {
+		//	log.Error().Msg("error when extreact metafile: %s")
+		//}
 		if (dataReplyMsg.Value == nil) {
 			return nil, errors.New("dataReplyMsg.Value==nil")
 		}
