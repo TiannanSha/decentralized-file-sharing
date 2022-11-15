@@ -267,11 +267,10 @@ func (n* node) ExecSearchRequestMessage(msg types.Message, pkt transport.Packet)
 
 	if (n.searchRequestsReceived.contains(searchRequestMsg.RequestID)) {
 		return nil
-	} else {
-		// this is new request
-		n.searchRequestsReceived.addStr(searchRequestMsg.RequestID)
 	}
-
+	// this is new request
+	n.searchRequestsReceived.addStr(searchRequestMsg.RequestID)
+	
 	// forward search request msgs if there's remaining budget
 	budget := searchRequestMsg.Budget - 1
 	if budget>0 {

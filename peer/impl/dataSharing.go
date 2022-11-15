@@ -134,11 +134,11 @@ func (n *node) Download(metahash string) ([]byte, error) {
 		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
 		if (chunk==nil) {
 			// need to find chunk at remote
-			requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+			requestID, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
 			if (err != nil) {
 				return nil, err
 			}
-			replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
+			replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
 			if (err != nil) {
 				return nil, err
 			}
@@ -169,8 +169,8 @@ func (n *node) sendDataRequestToRandPeerWhoHasHash(hash string) (string, transpo
 		return "", transport.Message{}, "", errors.New("no randpeer has given hash")
 	}
 	// send to rand peer dataRequestMessage and wait for corresponding dataReplyMessages
-	requestId := xid.New().String()
-	dataRequestMsg := types.DataRequestMessage{requestId, hash}
+	requestID := xid.New().String()
+	dataRequestMsg := types.DataRequestMessage{requestID, hash}
 	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(dataRequestMsg, dataRequestMsg.Name())
 	err = n.Unicast(randPeer, transportMsg)
 	log.Info().Msgf("node %s unicasted to node %s", n.addr, randPeer)
@@ -178,7 +178,7 @@ func (n *node) sendDataRequestToRandPeerWhoHasHash(hash string) (string, transpo
 		log.Warn().Msgf("err in Download() after unicast : %s", err)
 		return "",transportMsg,"",err
 	}
-	return requestId, transportMsg, randPeer, nil
+	return requestID, transportMsg, randPeer, nil
 }
 
 func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
@@ -239,7 +239,7 @@ func (n *node) waitForReplyMsg(requestID string, transportMsg transport.Message,
 			//log.Info().Msgf("node %s waitForAck() pktIdwaiting %s time out", n.addr, requestID)
 			err := n.Unicast(randPeer, transportMsg)
 			if err != nil {
-				log.Warn().Msgf("node %s waitForDataReply() requestId %s time out, error when unicast:", n.addr, requestID, err)
+				log.Warn().Msgf("node %s waitForDataReply() requestId %s time out, error when unicast:%s", n.addr, requestID, err)
 				return nil,errors.New("error while unicasting")
 			}
 			waitTime *= time.Duration(F)
@@ -270,8 +270,8 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 		// if budget for a nbr is >0, send search requestand wait for reply. budgets can be e.g. [1,0,1,1]
 		// or maybe [2,3,2,3]
 		if budgets[i]>0 {
-			requestId := xid.New().String()
-			searchReqMsg := types.SearchRequestMessage{RequestID: requestId, Origin: n.addr,
+			requestID := xid.New().String()
+			searchReqMsg := types.SearchRequestMessage{RequestID: requestID, Origin: n.addr,
 				Pattern: reg.String(), Budget: uint(budgets[i])}
 			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
 			nbr,err := n.nbrSet.selectARandomNbrExcept("")
@@ -290,8 +290,8 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 
 			// start a thread to wait for the search replies from diff peers in the network
 			timeoutChan := make(chan bool, 1)
-			timeoutChanPool[requestId] = timeoutChan
-			go n.waitForSearchAllReplyMsg(requestId, &threadSafeNames, timeoutChan)
+			timeoutChanPool[requestID] = timeoutChan
+			go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
 		}
 	}
 	time.Sleep(timeout*2)

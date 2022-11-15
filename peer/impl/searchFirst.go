@@ -61,8 +61,8 @@ func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf pe
 		// if budget for a nbr is >0, send search requestand wait for reply. budgets can be e.g. [1,0,1,1]
 		// or maybe [2,3,2,3]
 		if budgets[i]>0 {
-			requestId := xid.New().String()
-			searchReqMsg := types.SearchRequestMessage{RequestID: requestId, Origin: n.addr,
+			requestID := xid.New().String()
+			searchReqMsg := types.SearchRequestMessage{RequestID: requestID, Origin: n.addr,
 				Pattern: reg.String(), Budget: uint(budgets[i])}
 			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
 			nbr,err := n.nbrSet.selectARandomNbrExcept("")
@@ -79,8 +79,8 @@ func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf pe
 
 			// start a thread to wait for the search replies from diff peers in the network
 			timeoutChan := make(chan bool, 1)
-			timeoutChanPool[requestId] = timeoutChan
-			go n.waitForSearchFirstReplyMsg(requestId, threadSafeNames, timeoutChan)
+			timeoutChanPool[requestID] = timeoutChan
+			go n.waitForSearchFirstReplyMsg(requestID, threadSafeNames, timeoutChan)
 		}
 	}
 	// wait for threads to accumulate threadSafeNames

@@ -7,11 +7,11 @@ type ThreadSafeSlice struct {
 	sync.Mutex
 }
 
-func (s *ThreadSafeSlice) append(newStr string) {
-	s.Lock()
-	defer s.Unlock()
-	s.slice = append(s.slice, newStr)
-}
+//func (s *ThreadSafeSlice) append(newStr string) {
+//	s.Lock()
+//	defer s.Unlock()
+//	s.slice = append(s.slice, newStr)
+//}
 
 //func (s *ThreadSafeSlice) getSlice() []string{
 //	s.Lock()
