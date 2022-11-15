@@ -97,8 +97,8 @@ func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf pe
 	return "",nil
 }
 
-//todo maybe use two sets of channel pools one for search all one for search reply
-// todo and when receives a reply, pass to both chan pool
+//maybe use two sets of channel pools one for search all one for search reply
+// and when receives a reply, pass to both chan pool
 // add full files to threadSafeNames
 func (n *node) waitForSearchFirstReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
 	timeout time.Duration, timeoutChan chan bool) {
@@ -120,7 +120,10 @@ func (n *node) waitForSearchFirstReplyMsg(requestID string, threadSafeNames *Con
 			//}
 			// received the search reply message
 			log.Info().Msgf("node %s recevied search reply for requestId %s", n.addr, requestID)
-			searchReplyMsg := replyMsg.(*types.SearchReplyMessage)
+			searchReplyMsg,ok := replyMsg.(*types.SearchReplyMessage)
+			if (!ok) {
+				log.Error().Msgf("node %s cast error in waitForSearchFirstReplyMsg", n.addr)
+			}
 			// only append the name if theere's indeed file with filename local on the sender of the reply
 			for _,item := range searchReplyMsg.Responses {
 				// check if a fileInfo is for a full file

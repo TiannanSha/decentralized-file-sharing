@@ -199,7 +199,6 @@ func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
 	return randPeer,nil
 }
 
-// todo have a look at wait for ack and probably can reuse chan pool
 // exponential backoff, initial wait for I, then I*F, then I*F^2, after sending R messages, stop
 // each time send to the same random neighbor
 // transportMsg should contain the dataRequestMsg
@@ -326,7 +325,10 @@ func (n *node) waitForSearchAllReplyMsg(requestID string, threadSafeNames *Concu
 			//}
 			// received the search reply message
 			log.Info().Msgf("node %s recevied search reply for requestId %s", n.addr, requestID)
-			searchReplyMsg := replyMsg.(*types.SearchReplyMessage)
+			searchReplyMsg,ok := replyMsg.(*types.SearchReplyMessage)
+			if (!ok) {
+				log.Warn().Msgf("node %s cast error in wait for search all", n.addr)
+			}
 			// only append the name if theere's indeed file with filename local on the sender of the reply
 			for _,item := range searchReplyMsg.Responses {
 				threadSafeNames.addStr(item.Name)

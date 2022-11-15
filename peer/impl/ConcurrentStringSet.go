@@ -32,10 +32,10 @@ func (s *ConcurrentStrSet) addStr(newStr string) {
 	s.strings[newStr] = true
 }
 
-func (nbrSet *ConcurrentStrSet) contains(str string) bool {
-	nbrSet.Lock()
-	defer nbrSet.Unlock()
-	_,ok := nbrSet.strings[str]
+func (s *ConcurrentStrSet) contains(str string) bool {
+	s.Lock()
+	defer s.Unlock()
+	_,ok := s.strings[str]
 	return ok
 }
 

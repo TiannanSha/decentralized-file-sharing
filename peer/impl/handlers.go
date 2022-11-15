@@ -289,7 +289,7 @@ func (n* node) ExecSearchRequestMessage(msg types.Message, pkt transport.Packet)
 					Budget: uint(budgets[i]),
 				}
 				transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
-				// find an unseen nbr. also it needs not be the packet src // todo may be should exclude origin of search
+				// find an unseen nbr. also it needs not be the packet src。 may be should exclude origin of search
 				nbr,err := n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
 				for ; nbrsSent[nbr]; {
 					nbr,err = n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
