@@ -322,7 +322,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 		}
 	}
 	// start a thread to wait for the search replies from diff peers in the network
-	timeoutChan := make(chan bool, 10)
+	timeoutChan := make(chan bool, 1)
 	timeoutChanPool[requestID] = timeoutChan
 	go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
 	time.Sleep(timeout*2)
