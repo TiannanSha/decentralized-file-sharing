@@ -270,36 +270,37 @@ func (n* node) ExecSearchRequestMessage(msg types.Message, pkt transport.Packet)
 	}
 	// this is new request
 	n.searchRequestsReceived.addStr(searchRequestMsg.RequestID)
-	
+
 	// forward search request msgs if there's remaining budget
 	budget := searchRequestMsg.Budget - 1
 	if budget>0 {
-		budgets := n.divideBudget(int(budget))
-		numNbrs := len(budgets)
-		nbrsSent := make(map[string]bool)
-		for i:=0; i<numNbrs; i++ {
-			// if budget>0, send search request to a new nbr. budgets can be e.g. [1,0,1,1]
-			// or maybe [2,3,2,3]
-			if budgets[i]>0 {
-				searchReqMsg := types.SearchRequestMessage{
-					RequestID: searchRequestMsg.RequestID,
-					Origin: searchRequestMsg.Origin,
-					Pattern: searchRequestMsg.Pattern,
-					Budget: uint(budgets[i]),
-				}
-				transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
-				// find an unseen nbr. also it needs not be the packet src。 may be should exclude origin of search
-				nbr,err := n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
-				for ; nbrsSent[nbr]; {
-					nbr,err = n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
-				}
-				if (err!=nil) {
-					log.Warn().Msgf("node %s in ExecSearchRequestMessage: %s", n.addr, err)
-				}
-				// now we found a new nbr that we have not sent request to. send search request to the nbr
-				n.directlySendToNbr(transportMsg, nbr) // this auto changes the packet's src and relayby field
-			}
-		}
+		n.forwardSearchRequest(budget, searchRequestMsg, pkt)
+		//budgets := n.divideBudget(int(budget))
+		//numNbrs := len(budgets)
+		//nbrsSent := make(map[string]bool)
+		//for i:=0; i<numNbrs; i++ {
+		//	// if budget>0, send search request to a new nbr. budgets can be e.g. [1,0,1,1]
+		//	// or maybe [2,3,2,3]
+		//	if budgets[i]>0 {
+		//		searchReqMsg := types.SearchRequestMessage{
+		//			RequestID: searchRequestMsg.RequestID,
+		//			Origin: searchRequestMsg.Origin,
+		//			Pattern: searchRequestMsg.Pattern,
+		//			Budget: uint(budgets[i]),
+		//		}
+		//		transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
+		//		// find an unseen nbr. also it needs not be the packet src。 may be should exclude origin of search
+		//		nbr,err := n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+		//		for ; nbrsSent[nbr]; {
+		//			nbr,err = n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+		//		}
+		//		if (err!=nil) {
+		//			log.Warn().Msgf("node %s in ExecSearchRequestMessage: %s", n.addr, err)
+		//		}
+		//		// now we found a new nbr that we have not sent request to. send search request to the nbr
+		//		n.directlySendToNbr(transportMsg, nbr) // this auto changes the packet's src and relayby field
+		//	}
+		//}
 	}
 
 	// Check its naming store for any matching name and then construct a types.FilesInfo{} for each file mapped by a
@@ -349,6 +350,35 @@ func (n* node) ExecSearchRequestMessage(msg types.Message, pkt transport.Packet)
 	n.sendToNbrAndChangeDest(transportMsg, pkt.Header.Source, searchRequestMsg.Origin)
 
 	return nil
+}
+
+func (n *node) forwardSearchRequest(budget uint, searchRequestMsg *types.SearchRequestMessage, pkt transport.Packet) {
+	budgets := n.divideBudget(int(budget))
+	numNbrs := len(budgets)
+	nbrsSent := make(map[string]bool)
+	for i:=0; i<numNbrs; i++ {
+		// if budget>0, send search request to a new nbr. budgets can be e.g. [1,0,1,1]
+		// or maybe [2,3,2,3]
+		if budgets[i]>0 {
+			searchReqMsg := types.SearchRequestMessage{
+				RequestID: searchRequestMsg.RequestID,
+				Origin: searchRequestMsg.Origin,
+				Pattern: searchRequestMsg.Pattern,
+				Budget: uint(budgets[i]),
+			}
+			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
+			// find an unseen nbr. also it needs not be the packet src。 may be should exclude origin of search
+			nbr,err := n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+			for ; nbrsSent[nbr]; {
+				nbr,err = n.nbrSet.selectARandomNbrExcept(pkt.Header.Source)
+			}
+			if (err!=nil) {
+				log.Warn().Msgf("node %s in ExecSearchRequestMessage: %s", n.addr, err)
+			}
+			// now we found a new nbr that we have not sent request to. send search request to the nbr
+			n.directlySendToNbr(transportMsg, nbr) // this auto changes the packet's src and relayby field
+		}
+	}
 }
 
 /**

@@ -95,13 +95,13 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	metafile := n.conf.Storage.GetDataBlobStore().Get(metahash)
 	if (metafile==nil) {
 		// didn't find the metafile at local, send request to a random nbr that has this metafile from catalog
-		requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(metahash)
+		requestID, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(metahash)
 		if (err != nil) {
 			return nil, err
 		}
 
 		// wait for data reply msg containing the metafile
-		replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
+		replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
 		if (err != nil) {
 			return nil, err
 		}
@@ -186,11 +186,11 @@ func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
 	if (bagOfPeers==nil) {
 		return "", errors.New("no peer has given hash")
 	}
-	randPeerId := rand.Intn(len(bagOfPeers))
+	randPeerID := rand.Intn(len(bagOfPeers))
 	id := 0
 	var randPeer string
-	for peer,_ := range bagOfPeers {
-		if randPeerId==id {
+	for peer := range bagOfPeers {
+		if randPeerID==id {
 			randPeer = peer
 			break
 		}
