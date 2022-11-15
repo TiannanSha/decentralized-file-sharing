@@ -132,33 +132,31 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	var allChunks []byte
 	for _, chunkHash := range chunkHashes {
 		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
-		if chunk!=nil {
-			continue
+		if (chunk==nil) {
+			// need to find chunk at remote
+			requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+			if (err != nil) {
+				return nil, err
+			}
+			replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
+			if (err != nil) {
+				return nil, err
+			}
+			if (replyMsg == nil) {
+				// normal exit when node shut down
+				log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
+				return nil, errors.New("replyMsg==nil")
+			}
+			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
+			if (!ok) {
+				log.Error().Msg("error when extreact chunk")
+			}
+			if (dataReplyMsg.Value == nil) {
+				return nil, errors.New("dataReplyMsg.Value==nil")
+			}
+			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
+			chunk = dataReplyMsg.Value
 		}
-		// need to find chunk at remote
-		requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
-		if (err != nil) {
-			return nil, err
-		}
-		replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
-		if (err != nil) {
-			return nil, err
-		}
-		if (replyMsg == nil) {
-			// normal exit when node shut down
-			log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
-			return nil, errors.New("replyMsg==nil")
-		}
-		dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-		if (!ok) {
-			log.Error().Msg("error when extreact chunk")
-		}
-		if (dataReplyMsg.Value == nil) {
-			return nil, errors.New("dataReplyMsg.Value==nil")
-		}
-		n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
-		chunk = dataReplyMsg.Value
-
 		// now we have a chunk that is not nil, add it to the result
 		allChunks = append(allChunks, chunk...)
 	}
