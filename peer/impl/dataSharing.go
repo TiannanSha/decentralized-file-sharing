@@ -202,7 +202,7 @@ func (n *node) GetCatalog() peer.Catalog{
 //	metafileContent := string(metafile)
 //
 //	// update var metafile, then get hashes outside of if.
-//	//also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
+//	//also need to store the metafile locally as well and all chunks
 //	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
 //	// for each chunk hash send a request, and then store the replied key value to local
 //	var allChunks []byte
@@ -235,7 +235,10 @@ func (n *node) Download(metahash string) ([]byte, error) {
 
 		// wait for data reply msg containing the metafile
 		replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
-		if (err!=nil || replyMsg == nil) {
+		if (err != nil) {
+			return nil, err
+		}
+		if (replyMsg == nil) {
 			// normal exit when node shut down
 			log.Warn().Msgf("node %s, in download dataReplyMsg==nil", n.addr)
 			return nil, errors.New("replyMsg==nil")
@@ -243,6 +246,9 @@ func (n *node) Download(metahash string) ([]byte, error) {
 
 		// extract the metafile and then the chunk hashes from the
 		dataReplyMsg, _ := replyMsg.(*types.DataReplyMessage)
+		//if (!ok) {
+		//	log.Error().Msg("error when extreact metafile: %s")
+		//}
 		if (dataReplyMsg.Value == nil) {
 			return nil, errors.New("dataReplyMsg.Value==nil")
 		}
