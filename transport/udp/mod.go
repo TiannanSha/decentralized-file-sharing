@@ -3,7 +3,6 @@ package udp
 import (
 	"errors"
 	"github.com/rs/zerolog/log"
-	"go.dedis.ch/cs438/internal/traffic"
 	"go.dedis.ch/cs438/transport"
 	"net"
 	"sync"
@@ -19,7 +18,7 @@ import (
 func NewUDP() transport.Transport {
 	return &UDP{
 		//incomings: make(map[string]*net.UDPConn),
-		traffic:   traffic.NewTraffic(),
+		//traffic:   traffic.NewTraffic(),
 	}
 }
 
@@ -29,7 +28,7 @@ func NewUDP() transport.Transport {
 type UDP struct {
 	sync.RWMutex
 	//incomings map[string]*net.UDPConn
-	traffic   *traffic.Traffic  // not sure what this is for
+	//traffic   *traffic.Traffic  // not sure what this is for
 }
 
 // var counter uint32
@@ -133,7 +132,7 @@ func (s *Socket) Send(dest string, pkt transport.Packet, timeout time.Duration) 
 
 	log.Info().Msg("in Send(),successfully sent ")
 	s.outs.add(pkt)
-	s.traffic.LogSent(pkt.Header.RelayedBy, dest, pkt)
+	//s.traffic.LogSent(pkt.Header.RelayedBy, dest, pkt)
 	return nil
 }
 
@@ -170,7 +169,7 @@ func (s *Socket) Recv(timeout time.Duration) (transport.Packet, error) {
 	}
 
 	//log.Info().Msg("!!!!!!!!!!!!!in Recv(), received a packet")
-	s.traffic.LogRecv(pkt.Header.RelayedBy, s.myAddr, pkt)
+	//s.traffic.LogRecv(pkt.Header.RelayedBy, s.myAddr, pkt)
 	s.ins.add(pkt)
 	return pkt, nil
 
