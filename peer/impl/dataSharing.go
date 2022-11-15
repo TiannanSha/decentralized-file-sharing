@@ -126,12 +126,43 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	// we now have a metafile!=nil, extract chunk hashes from it.
 	metafileContent := string(metafile)
 
-	// update var metafile, then get hashes outside of if. also what the hack should I return for download?
-	// need to store the metafile locally as well and all chunks
+	// update var metafile, then get hashes outside of if. also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
 	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
-
-	return n.getAllChunksAndUpdateLocalBlob(chunkHashes)
+	// for each chunk hash send a request, and then store the replied key value to local
+	var allChunks []byte
+	for _, chunkHash := range chunkHashes {
+		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
+		if (chunk==nil) {
+			// need to find chunk at remote
+			requestID, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+			if (err != nil) {
+				return nil, err
+			}
+			replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
+			if (err != nil) {
+				return nil, err
+			}
+			if (replyMsg == nil) {
+				// normal exit when node shut down
+				log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
+				return nil, errors.New("replyMsg==nil")
+			}
+			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
+			if (!ok) {
+				log.Error().Msg("error when extreact chunk")
+			}
+			if (dataReplyMsg.Value == nil) {
+				return nil, errors.New("dataReplyMsg.Value==nil")
+			}
+			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
+			chunk = dataReplyMsg.Value
+		}
+		// now we have a chunk that is not nil, add it to the result
+		allChunks = append(allChunks, chunk...)
+	}
+	return allChunks, nil
 }
+
 
 func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, error){
 	var allChunks []byte
@@ -205,7 +236,7 @@ func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
 func (n *node) waitForReplyMsg(requestID string, transportMsg transport.Message,
 	randPeer string) (types.Message,error) {
 	numResend := uint(0) // number of re-send
-	I := n.conf.BackoffDataRequest.Initial*2
+	I := n.conf.BackoffDataRequest.Initial
 	F := n.conf.BackoffDataRequest.Factor
 	R := n.conf.BackoffDataRequest.Retry
 	waitTime := I
