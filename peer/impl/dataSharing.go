@@ -127,7 +127,7 @@ func (n *node) GetCatalog() peer.Catalog{
 //	metafileContent := string(metafile)
 //
 //	// update var metafile, then get hashes outside of if.
-//	//what should I return for download? need to store metafile locally as well and all chunks
+//	//also  need to store the metafile locally as well and all chunks
 //	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
 //	// for each chunk hash send a request, and then store the replied key value to local
 //	var allChunks []byte
@@ -164,64 +164,6 @@ func (n *node) GetCatalog() peer.Catalog{
 //	return allChunks, nil
 //}
 
-//func (n *node) Download(metahash string) ([]byte, error) {
-//	// get the metafile by first check the local blob store
-//	// and send to it dataRequestMessage and wait for corresponding dataReplyMessages
-//	metafile := n.conf.Storage.GetDataBlobStore().Get(metahash)
-//	if (metafile==nil) {
-//		// didn't find the metafile at local, send request to a random nbr that has this metafile from catalog
-//		requestID, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(metahash)
-//		if (err != nil) {
-//			return nil, err
-//		}
-//
-//		// wait for data reply msg containing the metafile
-//		replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
-//		if (err != nil) {
-//			return nil, err
-//		}
-//		if (replyMsg == nil) {
-//			// normal exit when node shut down
-//			log.Warn().Msgf("node %s, in download dataReplyMsg==nil", n.addr)
-//			return nil, errors.New("replyMsg==nil")
-//		}
-//
-//		// extract the metafile and then the chunk hashes from the
-//		dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-//		if (!ok) {
-//			log.Error().Msg("error when extreact metafile: %s")
-//		}
-//		if (dataReplyMsg.Value == nil) {
-//			return nil, errors.New("dataReplyMsg.Value==nil")
-//		}
-//		metafile = dataReplyMsg.Value
-//		n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value) // store metafile to local
-//	}
-//
-//	// we now have a metafile!=nil, extract chunk hashes from it.
-//	metafileContent := string(metafile)
-//
-//	// update var metafile, then get hashes outside of if.
-//	//also need to store the metafile locally as well and all chunks
-//	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
-//	// for each chunk hash send a request, and then store the replied key value to local
-//	var allChunks []byte
-//	var err error
-//	for _, chunkHash := range chunkHashes {
-//		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
-//		if (chunk==nil) {
-//			// need to find chunk at remote
-//			chunk,err = n.getRemoteChunkAndUpdateBlob(chunkHash)
-//			if (err!=nil) {
-//				return nil,err
-//			}
-//		}
-//		// now we have a chunk that is not nil, add it to the result
-//		allChunks = append(allChunks, chunk...)
-//	}
-//	return allChunks, nil
-//}
-
 func (n *node) Download(metahash string) ([]byte, error) {
 	// get the metafile by first check the local blob store
 	// and send to it dataRequestMessage and wait for corresponding dataReplyMessages
@@ -245,10 +187,10 @@ func (n *node) Download(metahash string) ([]byte, error) {
 		}
 
 		// extract the metafile and then the chunk hashes from the
-		dataReplyMsg, _ := replyMsg.(*types.DataReplyMessage)
-		//if (!ok) {
-		//	log.Error().Msg("error when extreact metafile: %s")
-		//}
+		dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
+		if (!ok) {
+			log.Error().Msg("error when extreact metafile: %s")
+		}
 		if (dataReplyMsg.Value == nil) {
 			return nil, errors.New("dataReplyMsg.Value==nil")
 		}
