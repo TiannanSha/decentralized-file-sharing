@@ -144,7 +144,7 @@ func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, err
 				return nil,err1
 			}
 			replyMsg, err2 := n.waitForReplyMsg(requestID, transportMsg, randPeer)
-			if (replyMsg == nil || err1!= nil || err2!=nil) {
+			if (replyMsg == nil || err2!=nil) {
 				// normal exit when node shut down
 				log.Warn().Msgf("node %s, in download has error", n.addr)
 				return nil, errors.New("error in download")
@@ -205,7 +205,7 @@ func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
 func (n *node) waitForReplyMsg(requestID string, transportMsg transport.Message,
 	randPeer string) (types.Message,error) {
 	numResend := uint(0) // number of re-send
-	I := n.conf.BackoffDataRequest.Initial
+	I := n.conf.BackoffDataRequest.Initial*2
 	F := n.conf.BackoffDataRequest.Factor
 	R := n.conf.BackoffDataRequest.Retry
 	waitTime := I
