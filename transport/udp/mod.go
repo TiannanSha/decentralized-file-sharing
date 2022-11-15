@@ -148,7 +148,7 @@ func (s *Socket) Recv(timeout time.Duration) (transport.Packet, error) {
 	if (timeout>0) {
 		err:= s.udpConn.SetReadDeadline(time.Now().Add(timeout))
 		if (err!=nil) {
-			//log.Info().Msgf("in Recv(), err:%s", err)
+			log.Info().Msgf("in Recv(), err:%s", err)
 		}
 	}
 
