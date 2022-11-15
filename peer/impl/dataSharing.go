@@ -140,6 +140,9 @@ func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, err
 		if (chunk==nil) {
 			// need to find chunk at remote
 			requestID, transportMsg, randPeer, err1 := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+			if (err1!=nil) {
+				return nil,err1
+			}
 			replyMsg, err2 := n.waitForReplyMsg(requestID, transportMsg, randPeer)
 			if (replyMsg == nil || err1!= nil || err2!=nil) {
 				// normal exit when node shut down
@@ -147,7 +150,7 @@ func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, err
 				return nil, errors.New("error in download")
 			}
 			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-			if (dataReplyMsg.Value == nil || !ok) {
+			if (!ok || dataReplyMsg.Value == nil) {
 				return nil, errors.New("error in download")
 			}
 			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
