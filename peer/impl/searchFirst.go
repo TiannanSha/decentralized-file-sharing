@@ -80,7 +80,7 @@ func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf pe
 			// start a thread to wait for the search replies from diff peers in the network
 			timeoutChan := make(chan bool, 1)
 			timeoutChanPool[requestId] = timeoutChan
-			go n.waitForSearchFirstReplyMsg(requestId, threadSafeNames, conf.Timeout, timeoutChan)
+			go n.waitForSearchFirstReplyMsg(requestId, threadSafeNames, timeoutChan)
 		}
 	}
 	// wait for threads to accumulate threadSafeNames
@@ -100,8 +100,7 @@ func (n *node) sendSearchReqToNbrsThenWaitTillTimeout(reg regexp.Regexp, conf pe
 //maybe use two sets of channel pools one for search all one for search reply
 // and when receives a reply, pass to both chan pool
 // add full files to threadSafeNames
-func (n *node) waitForSearchFirstReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
-	timeout time.Duration, timeoutChan chan bool) {
+func (n *node) waitForSearchFirstReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet, timeoutChan chan bool) {
 
 	// set a channel to listen whether received a reply msg
 	ch := make(chan types.Message, 1)

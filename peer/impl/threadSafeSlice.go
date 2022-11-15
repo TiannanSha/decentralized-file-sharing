@@ -13,13 +13,13 @@ func (s *ThreadSafeSlice) append(newStr string) {
 	s.slice = append(s.slice, newStr)
 }
 
-func (s *ThreadSafeSlice) getSlice() []string{
-	s.Lock()
-	defer s.Unlock()
-	return s.slice
-}
+//func (s *ThreadSafeSlice) getSlice() []string{
+//	s.Lock()
+//	defer s.Unlock()
+//	return s.slice
+//}
 
-func NewEmptyThreadSafeSlice() ThreadSafeSlice{
-	var slice []string
-	return ThreadSafeSlice{slice: slice}
-}
+//func NewEmptyThreadSafeSlice() ThreadSafeSlice{
+//	var slice []string
+//	return ThreadSafeSlice{slice: slice}
+//}

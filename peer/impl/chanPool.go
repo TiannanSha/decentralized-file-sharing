@@ -99,13 +99,13 @@ func(c *MsgChanPool) passMsgToWaiter(pktID string, msg types.Message) {
 }
 
 // stop all go routines that are waiting for an ACK
-func (c *MsgChanPool) stopAllWaitingForACK() {
-	log.Info().Msgf("in  stopAllWaitingForACK()")
-	c.Lock()
-	//log.Info().Msgf("node %s n.pktAckChannels: %s", n.addr, n.pktAckChannels)
-	for _,ch := range c.pktAckChannels {
-		ch <- types.EmptyMessage{}
-	}
-	//log.Info().Msgf("node %s, end of stopAllWaitingForAck, n.pktAckChannels = %s", n.addr, n.pktAckChannels)
-	c.Unlock()
-}
+//func (c *MsgChanPool) stopAllWaitingForACK() {
+//	log.Info().Msgf("in  stopAllWaitingForACK()")
+//	c.Lock()
+//	//log.Info().Msgf("node %s n.pktAckChannels: %s", n.addr, n.pktAckChannels)
+//	for _,ch := range c.pktAckChannels {
+//		ch <- types.EmptyMessage{}
+//	}
+//	//log.Info().Msgf("node %s, end of stopAllWaitingForAck, n.pktAckChannels = %s", n.addr, n.pktAckChannels)
+//	c.Unlock()
+//}

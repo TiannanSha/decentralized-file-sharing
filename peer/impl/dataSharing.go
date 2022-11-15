@@ -132,31 +132,33 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	var allChunks []byte
 	for _, chunkHash := range chunkHashes {
 		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
-		if (chunk==nil) {
-			// need to find chunk at remote
-			requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
-			if (err != nil) {
-				return nil, err
-			}
-			replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
-			if (err != nil) {
-				return nil, err
-			}
-			if (replyMsg == nil) {
-				// normal exit when node shut down
-				log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
-				return nil, errors.New("replyMsg==nil")
-			}
-			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-			if (!ok) {
-				log.Error().Msg("error when extreact chunk")
-			}
-			if (dataReplyMsg.Value == nil) {
-				return nil, errors.New("dataReplyMsg.Value==nil")
-			}
-			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
-			chunk = dataReplyMsg.Value
+		if chunk!=nil {
+			continue
 		}
+		// need to find chunk at remote
+		requestId, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+		if (err != nil) {
+			return nil, err
+		}
+		replyMsg, err := n.waitForReplyMsg(requestId, transportMsg, randPeer)
+		if (err != nil) {
+			return nil, err
+		}
+		if (replyMsg == nil) {
+			// normal exit when node shut down
+			log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
+			return nil, errors.New("replyMsg==nil")
+		}
+		dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
+		if (!ok) {
+			log.Error().Msg("error when extreact chunk")
+		}
+		if (dataReplyMsg.Value == nil) {
+			return nil, errors.New("dataReplyMsg.Value==nil")
+		}
+		n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
+		chunk = dataReplyMsg.Value
+
 		// now we have a chunk that is not nil, add it to the result
 		allChunks = append(allChunks, chunk...)
 	}
@@ -291,7 +293,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 			// start a thread to wait for the search replies from diff peers in the network
 			timeoutChan := make(chan bool, 1)
 			timeoutChanPool[requestId] = timeoutChan
-			go n.waitForSearchAllReplyMsg(requestId, &threadSafeNames, timeout, timeoutChan)
+			go n.waitForSearchAllReplyMsg(requestId, &threadSafeNames, timeoutChan)
 		}
 	}
 	time.Sleep(timeout)
@@ -305,8 +307,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 
 // whenever receives a search reply msg, append the received file name to names
 // we wait for timeout amount of time to collect search reply msgs from different peers
-func (n *node) waitForSearchAllReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
-	timeout time.Duration, timeoutChan chan bool) {
+func (n *node) waitForSearchAllReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet, timeoutChan chan bool) {
 
 	// set a channel to listen whether received a reply msg
 	ch := make(chan types.Message, 1)
@@ -366,7 +367,7 @@ func (n *node) divideBudget(budget int) []int {
 			}
 			indices[index] = true // add new index to the indices set
 		}
-		for k,_ := range indices {
+		for k := range indices {
 			budgets[k]++
 		}
 	}

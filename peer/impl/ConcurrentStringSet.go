@@ -44,7 +44,7 @@ func (s *ConcurrentStrSet) getStrSlice() []string {
 	s.Lock()
 	defer  s.Unlock()
 	var res []string
-	for str,_ := range s.strings {
+	for str := range s.strings {
 		res = append(res, str)
 	}
 	return res
