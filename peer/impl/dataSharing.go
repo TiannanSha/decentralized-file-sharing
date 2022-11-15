@@ -409,7 +409,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	timeoutChan := make(chan bool, 1)
 	timeoutChanPool[requestID] = timeoutChan
 	go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
-	time.Sleep(timeout*3)
+	time.Sleep(timeout)
 	// notify all threads collecting search replies that timeout, let's collect and return
 	for _,v := range timeoutChanPool {
 		v <- true
