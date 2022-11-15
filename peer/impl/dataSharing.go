@@ -296,11 +296,13 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	numNbrs := len(budgets)
 	nbrsSent := make(map[string]bool)
 	timeoutChanPool := make(map[string]chan bool)  // send stop signal to threads waiting searching reply
+	requestID := xid.New().String()
+
+	// send search requests to nbrs, with same request id
 	for i:=0; i<numNbrs; i++ {
 		// if budget for a nbr is >0, send search requestand wait for reply. budgets can be e.g. [1,0,1,1]
 		// or maybe [2,3,2,3]
 		if budgets[i]>0 {
-			requestID := xid.New().String()
 			searchReqMsg := types.SearchRequestMessage{RequestID: requestID, Origin: n.addr,
 				Pattern: reg.String(), Budget: uint(budgets[i])}
 			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
@@ -317,13 +319,12 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 			if err != nil {
 				return nil, err
 			}
-
-			// start a thread to wait for the search replies from diff peers in the network
-			timeoutChan := make(chan bool, 1)
-			timeoutChanPool[requestID] = timeoutChan
-			go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
 		}
 	}
+	// start a thread to wait for the search replies from diff peers in the network
+	timeoutChan := make(chan bool, 10)
+	timeoutChanPool[requestID] = timeoutChan
+	go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
 	time.Sleep(timeout*2)
 	// notify all threads collecting search replies that timeout, let's collect and return
 	for _,v := range timeoutChanPool {
@@ -331,6 +332,59 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	}
 	return threadSafeNames.getStrSlice(), nil
 }
+
+//func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+//	threadSafeNames := NewConcurrentStrSet()
+//
+//	// search local naming store for file names that match the reg
+//	n.conf.Storage.GetNamingStore().ForEach(func(name string, val []byte) bool {
+//		if reg.MatchString(name) {
+//			threadSafeNames.addStr(name)
+//		}
+//		return true
+//	})
+//
+//	// divide budget evenly among nbrs and send search request to nbrs to get matching filenames from nbrs
+//	// wait for search reply until timeout
+//	budgets := n.divideBudget(int(budget))
+//	numNbrs := len(budgets)
+//	nbrsSent := make(map[string]bool)
+//	timeoutChanPool := make(map[string]chan bool)  // send stop signal to threads waiting searching reply
+//	for i:=0; i<numNbrs; i++ {
+//		// if budget for a nbr is >0, send search requestand wait for reply. budgets can be e.g. [1,0,1,1]
+//		// or maybe [2,3,2,3]
+//		if budgets[i]>0 {
+//			requestID := xid.New().String()
+//			searchReqMsg := types.SearchRequestMessage{RequestID: requestID, Origin: n.addr,
+//				Pattern: reg.String(), Budget: uint(budgets[i])}
+//			transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(searchReqMsg, searchReqMsg.Name())
+//			nbr,err := n.nbrSet.selectARandomNbrExcept("")
+//			for ; nbrsSent[nbr]; {
+//				nbr,err = n.nbrSet.selectARandomNbrExcept("")
+//			}
+//			if (err!=nil) {
+//				log.Warn().Msgf("node %s in searchAll err: %s", n.addr, err)
+//			}
+//			// now we found a new nbr that we have not sent request to. send search request to the nbr
+//			nbrsSent[nbr] = true
+//			n.directlySendToNbr(transportMsg, nbr)
+//			if err != nil {
+//				return nil, err
+//			}
+//
+//			// start a thread to wait for the search replies from diff peers in the network
+//			timeoutChan := make(chan bool, 1)
+//			timeoutChanPool[requestID] = timeoutChan
+//			go n.waitForSearchAllReplyMsg(requestID, &threadSafeNames, timeoutChan)
+//		}
+//	}
+//	time.Sleep(timeout*2)
+//	// notify all threads collecting search replies that timeout, let's collect and return
+//	for _,v := range timeoutChanPool {
+//		v <- true
+//	}
+//	return threadSafeNames.getStrSlice(), nil
+//}
 
 
 // whenever receives a search reply msg, append the received file name to names
