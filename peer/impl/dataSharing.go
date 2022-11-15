@@ -320,7 +320,7 @@ func (n *node) getRandomPeerWhoHasHash(hash string) (string,error) {
 func (n *node) waitForReplyMsg(requestID string, transportMsg transport.Message,
 	randPeer string) (types.Message,error) {
 	numResend := uint(0) // number of re-send
-	I := n.conf.BackoffDataRequest.Initial
+	I := n.conf.BackoffDataRequest.Initial*2
 	F := n.conf.BackoffDataRequest.Factor
 	R := n.conf.BackoffDataRequest.Retry
 	waitTime := I
