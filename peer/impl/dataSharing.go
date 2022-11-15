@@ -126,33 +126,29 @@ func (n *node) Download(metahash string) ([]byte, error) {
 	// we now have a metafile!=nil, extract chunk hashes from it.
 	metafileContent := string(metafile)
 
-		// update var metafile, then get hashes outside of if. also what the hack should I return for download? I think I need to store the metafile locally as well and all chunks
+	// update var metafile, then get hashes outside of if. also what the hack should I return for download?
+	// need to store the metafile locally as well and all chunks
 	chunkHashes := strings.Split(metafileContent, peer.MetafileSep)
-	// for each chunk hash send a request, and then store the replied key value to local
+
+	return n.getAllChunksAndUpdateLocalBlob(chunkHashes)
+}
+
+func (n *node) getAllChunksAndUpdateLocalBlob(chunkHashes []string) ([]byte, error){
 	var allChunks []byte
 	for _, chunkHash := range chunkHashes {
 		chunk := n.conf.Storage.GetDataBlobStore().Get(chunkHash)
 		if (chunk==nil) {
 			// need to find chunk at remote
-			requestID, transportMsg, randPeer, err := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
-			if (err != nil) {
-				return nil, err
-			}
-			replyMsg, err := n.waitForReplyMsg(requestID, transportMsg, randPeer)
-			if (err != nil) {
-				return nil, err
-			}
-			if (replyMsg == nil) {
+			requestID, transportMsg, randPeer, err1 := n.sendDataRequestToRandPeerWhoHasHash(chunkHash)
+			replyMsg, err2 := n.waitForReplyMsg(requestID, transportMsg, randPeer)
+			if (replyMsg == nil || err1!= nil || err2!=nil) {
 				// normal exit when node shut down
-				log.Warn().Msgf("node %s, in download ReplyMsg==nil", n.addr)
-				return nil, errors.New("replyMsg==nil")
+				log.Warn().Msgf("node %s, in download has error", n.addr)
+				return nil, errors.New("error in download")
 			}
 			dataReplyMsg, ok := replyMsg.(*types.DataReplyMessage)
-			if (!ok) {
-				log.Error().Msg("error when extreact chunk")
-			}
-			if (dataReplyMsg.Value == nil) {
-				return nil, errors.New("dataReplyMsg.Value==nil")
+			if (dataReplyMsg.Value == nil || !ok) {
+				return nil, errors.New("error in download")
 			}
 			n.conf.Storage.GetDataBlobStore().Set(dataReplyMsg.Key, dataReplyMsg.Value)
 			chunk = dataReplyMsg.Value
@@ -170,7 +166,7 @@ func (n *node) sendDataRequestToRandPeerWhoHasHash(hash string) (string, transpo
 	}
 	// send to rand peer dataRequestMessage and wait for corresponding dataReplyMessages
 	requestID := xid.New().String()
-	dataRequestMsg := types.DataRequestMessage{requestID, hash}
+	dataRequestMsg := types.DataRequestMessage{RequestID: requestID, Key: hash}
 	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(dataRequestMsg, dataRequestMsg.Name())
 	err = n.Unicast(randPeer, transportMsg)
 	log.Info().Msgf("node %s unicasted to node %s", n.addr, randPeer)

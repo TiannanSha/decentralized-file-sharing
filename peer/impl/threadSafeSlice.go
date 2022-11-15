@@ -3,7 +3,7 @@ package impl
 import "sync"
 
 type ThreadSafeSlice struct {
-	slice []string
+	//slice []string
 	sync.Mutex
 }
 
