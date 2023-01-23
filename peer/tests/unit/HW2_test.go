@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"github.com/rs/zerolog/log"
 	"regexp"
 	"strings"
 	"testing"
@@ -1629,6 +1630,12 @@ func Test_HW2_Scenario(t *testing.T) {
 
 			nodeD := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
 			defer nodeD.Stop()
+
+			log.Info().Msgf("nodeA addr: %s", nodeA.GetAddr())
+			log.Info().Msgf("nodeB addr: %s", nodeB.GetAddr())
+			log.Info().Msgf("nodeC addr: %s", nodeC.GetAddr())
+			log.Info().Msgf("nodeD addr: %s", nodeD.GetAddr())
+
 
 			nodeA.AddPeer(nodeB.GetAddr())
 			nodeB.AddPeer(nodeA.GetAddr())

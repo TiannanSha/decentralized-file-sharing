@@ -173,6 +173,7 @@ func (n *node) sendDataRequestToRandPeerWhoHasHash(hash string) (string, transpo
 	dataRequestMsg := types.DataRequestMessage{requestId, hash}
 	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(dataRequestMsg, dataRequestMsg.Name())
 	err = n.Unicast(randPeer, transportMsg)
+	log.Info().Msgf("node %s unicasted to node %s", n.addr, randPeer)
 	if err != nil {
 		log.Warn().Msgf("err in Download() after unicast : %s", err)
 		return "",transportMsg,"",err
@@ -282,6 +283,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 				log.Warn().Msgf("node %s in searchAll err: %s", n.addr, err)
 			}
 			// now we found a new nbr that we have not sent request to. send search request to the nbr
+			nbrsSent[nbr] = true
 			n.directlySendToNbr(transportMsg, nbr)
 			if err != nil {
 				return nil, err
@@ -290,7 +292,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 			// start a thread to wait for the search replies from diff peers in the network
 			timeoutChan := make(chan bool, 1)
 			timeoutChanPool[requestId] = timeoutChan
-			go n.waitForSearchReplyMsg(requestId, &threadSafeNames, timeout, timeoutChan)
+			go n.waitForSearchAllReplyMsg(requestId, &threadSafeNames, timeout, timeoutChan)
 		}
 	}
 	time.Sleep(timeout)
@@ -304,12 +306,12 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 
 // whenever receives a search reply msg, append the received file name to names
 // we wait for timeout amount of time to collect search reply msgs from different peers
-func (n *node) waitForSearchReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
+func (n *node) waitForSearchAllReplyMsg(requestID string, threadSafeNames *ConcurrentStrSet,
 	timeout time.Duration, timeoutChan chan bool) {
 
 	// set a channel to listen whether received a reply msg
 	ch := make(chan types.Message, 1)
-	n.searchReplyChannels.setAckChannel(requestID, ch)
+	n.searchAllReplyChannels.setAckChannel(requestID, ch)
 	//if (n.conf.BackoffDataRequest.Initial==0) {
 	//	return
 	//}
@@ -334,7 +336,7 @@ func (n *node) waitForSearchReplyMsg(requestID string, threadSafeNames *Concurre
 			// notify by calling thread that we have collected enough time for search replies
 			log.Info().Msgf("node %s timed out in wait for search reply", n.addr)
 			close(ch)
-			n.searchReplyChannels.deleteAckChannel(requestID)
+			n.searchAllReplyChannels.deleteAckChannel(requestID)
 			return
 		}
 	}
@@ -368,6 +370,10 @@ func (n *node) divideBudget(budget int) []int {
 	}
 	return budgets
 }
+
+
+
+/* *** filename related *** */
 
 func (n *node) Tag(name string, mh string) error {
 	n.conf.Storage.GetNamingStore().Set(name, []byte(mh))

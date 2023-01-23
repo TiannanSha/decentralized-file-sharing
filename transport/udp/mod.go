@@ -142,34 +142,34 @@ func (s *Socket) Send(dest string, pkt transport.Packet, timeout time.Duration) 
 // TimeoutErr.
 func (s *Socket) Recv(timeout time.Duration) (transport.Packet, error) {
 	//panic("to be implemented in HW0")
-	log.Info().Msgf("in Recv() on socket %s", s.myAddr)
+	//log.Info().Msgf("in Recv() on socket %s", s.myAddr)
 
 	// set timeout for readFromUDP if needed
 	if (timeout>0) {
 		err:= s.udpConn.SetReadDeadline(time.Now().Add(timeout))
 		if (err!=nil) {
-			log.Info().Msgf("in Recv(), err:%s", err)
+			//log.Info().Msgf("in Recv(), err:%s", err)
 		}
 	}
 
 	pktBytes := make([]byte, 80000)
 	numBytes,_,err := s.udpConn.ReadFromUDP(pktBytes)
-	log.Info().Msgf("in Recv(), %v bytes were read \n", numBytes)
+	//log.Info().Msgf("in Recv(), %v bytes were read \n", numBytes)
 	if (err!=nil) {
 		log.Info().Msgf("err:%s", err)
 		return transport.Packet{}, transport.TimeoutError(0)
 	}
 
-	log.Info().Msg("In recv(), successfully ReadFromUDP")
+	//log.Info().Msg("In recv(), successfully ReadFromUDP")
 	var pkt transport.Packet
 	err = pkt.Unmarshal(pktBytes[0:numBytes])
-	log.Info().Msg("in Recv(), after Unmarshal")
+	//log.Info().Msg("in Recv(), after Unmarshal")
 	log.Info().Msgf("in Recv, pkt:%s", pkt)
 	if (err!=nil) {
 		log.Error().Msgf("line 152 in Recv(), error when unmarshaling, err: %s \n", err)
 	}
 
-	log.Info().Msg("!!!!!!!!!!!!!in Recv(), received a packet")
+	//log.Info().Msg("!!!!!!!!!!!!!in Recv(), received a packet")
 	s.traffic.LogRecv(pkt.Header.RelayedBy, s.myAddr, pkt)
 	s.ins.add(pkt)
 	return pkt, nil

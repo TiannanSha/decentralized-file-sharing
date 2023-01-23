@@ -213,6 +213,7 @@ func (n* node) ExecDataRequestMessage(msg types.Message, pkt transport.Packet) e
 		Value:     n.conf.Storage.GetDataBlobStore().Get(dataRequestMsg.Key),
 	}
 	transportMsg := n.wrapInTransMsgBeforeUnicastOrSend(dataReplyMsg, dataReplyMsg.Name())
+	log.Info().Msgf("node %s unicast to addr %s", n.addr, pkt.Header.Source )
 	err := n.Unicast(pkt.Header.Source, transportMsg)
 	if err != nil {
 		return err
@@ -242,7 +243,14 @@ func (n* node) ExecSearchReplyMessage(msg types.Message, pkt transport.Packet) e
 	}
 
 	// reply a data replyMessage to the sender of data request
-	n.searchReplyChannels.passMsgToWaiter(searchReplyMsg.RequestID, msg)
+	//requestID := searchReplyMsg.RequestID
+	//log.Info().Msgf("node %s n.searchAllReplyChannels: %s", n.addr, n.searchAllReplyChannels.pktAckChannels)
+	//ch,_ := n.searchFirstReplyChannels.getAckChannel(requestID)
+
+	n.searchAllReplyChannels.passMsgToWaiter(searchReplyMsg.RequestID, msg)
+
+	//log.Info().Msgf("node %s n.searchFirstReplyChannels: %s", n.addr, n.searchFirstReplyChannels)
+	n.searchFirstReplyChannels.passMsgToWaiter(searchReplyMsg.RequestID, msg)
 	return nil
 }
 

@@ -31,13 +31,14 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	pktAckChannels := ChanPool{pktAckChannels: channelsMap}
 	dataReplyChannels := NewMsgChanPool()
 	searchReplyChannels := NewMsgChanPool()
+	searchFirstReplyChannels := NewMsgChanPool()
 	catalog := NewConcurrentCatalog()
 	concurrentStrSet := NewConcurrentStrSet()
 
 	return &node{conf:conf, routingTable: routingTable, stopSigCh: stopSig, Status: &Status,
 		addr: conf.Socket.GetAddress(), nbrSet: &nbrs, pktAckChannels: &pktAckChannels, Catalog: &catalog,
-	dataReplyChannels: &dataReplyChannels, searchReplyChannels: &searchReplyChannels,
-	searchRequestsReceived: &concurrentStrSet}
+	dataReplyChannels: &dataReplyChannels, searchAllReplyChannels: &searchReplyChannels,
+	searchRequestsReceived: &concurrentStrSet, searchFirstReplyChannels: &searchFirstReplyChannels}
 }
 
 // node implements a peer to build a Peerster system
@@ -50,16 +51,17 @@ type node struct {
 	stopSigCh chan bool
 	routingTable peer.RoutingTable
 	sync.RWMutex
-	Status *status
-	nbrSet *NbrSet
-	addr   string
-	antiEntropyQuitCh chan struct{} // initialized when starting antiEntropy mechanism
-	heartbeatQuitCh chan struct{} // initialized when starting heartbeat mechanism
-	pktAckChannels *ChanPool
-	dataReplyChannels *MsgChanPool // when recv data reply, use these chan to notify the thread waiting for this reply
-	searchReplyChannels *MsgChanPool // when recv search reply, ...
-	Catalog *ConcurrentCatalog
+	Status                 *status
+	nbrSet                 *NbrSet
+	addr                   string
+	antiEntropyQuitCh      chan struct{} // initialized when starting antiEntropy mechanism
+	heartbeatQuitCh        chan struct{} // initialized when starting heartbeat mechanism
+	pktAckChannels         *ChanPool
+	dataReplyChannels      *MsgChanPool // when recv data reply, use these chan to notify the thread waiting for this reply
+	searchAllReplyChannels *MsgChanPool // when recv search reply, ...
+	Catalog                *ConcurrentCatalog
 	searchRequestsReceived *ConcurrentStrSet
+	searchFirstReplyChannels * MsgChanPool
 }
 
 // Start implements peer.Service

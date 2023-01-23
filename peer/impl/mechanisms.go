@@ -47,6 +47,12 @@ func (n* node) startHeartbeat() chan struct{} {
 	ticker := time.NewTicker(n.conf.HeartbeatInterval)
 	quitCh := make(chan struct{})
 	n.antiEntropyQuitCh = quitCh
+	emptyMsg := types.EmptyMessage{}
+	msg := n.wrapInTransMsgBeforeUnicastOrSend(emptyMsg, emptyMsg.Name())
+	err := n.Broadcast(msg)
+	if err != nil {
+		log.Warn().Msgf("node %s error in startHeartbeat err: %s", n.addr, err)
+	}
 	go func() {
 		for {
 			select {

@@ -88,10 +88,12 @@ func (c *MsgChanPool) deleteAckChannel(pktID string) {
 	delete(c.pktAckChannels, pktID)
 }
 
+//do nothing if no channel found
 func(c *MsgChanPool) passMsgToWaiter(pktID string, msg types.Message) {
 	ch, ok := c.getAckChannel(pktID)
 	if !ok {
-		log.Error().Msgf("in notify ACK channel, no channel found")
+		log.Warn().Msgf("in notify ACK channel, no channel found")
+		return
 	}
 	ch <- msg
 }
